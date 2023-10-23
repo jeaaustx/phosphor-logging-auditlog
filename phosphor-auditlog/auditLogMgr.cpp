@@ -23,7 +23,7 @@ void ALManager::parseAuditLog(std::string filePath)
                filePath);
 
     /* Create output file
-     * TODO: Incorporate this in the constructor
+     * TODO: Incorporate this in the constructor?
      */
     if (auditParser.openParsedFile(filePath))
     {
@@ -36,6 +36,12 @@ void ALManager::parseAuditLog(std::string filePath)
             auditParser.parseEvent();
         }
     }
+#if 0
+    else
+    {
+            // Handle error
+    }
+#endif
 
     return;
 }

@@ -10,6 +10,7 @@
 
 #include <cstring>
 #include <filesystem>
+#include <map>
 #include <string>
 
 namespace phosphor
@@ -49,32 +50,40 @@ bool ALParser::auditNextEvent()
     return haveEvent;
 }
 
+/* TODO:
+ *      - Separate the parsing and the writing of the record to the file?
+ */
+
+/**
+ * @brief Parses next event and each of its records into JSON format
+ * @details Writes the audit log events into the parsedFile.
+ * Parsed into format for bmcweb to read the parsedFile.
+ */
 void ALParser::parseEvent()
 {
     unsigned int nRecords = auparse_get_num_records(au);
 
-    /* The event itself is a record, and may be the only
-     * one
-     */
+    // The event itself is a record. It may be the only one.
     ALParser::parseRecord();
 
     /* Handle any additional records for this event */
     for (unsigned int iter = 1; iter < nRecords; iter++)
     {
         auto rc = auparse_next_record(au);
-        lg2::debug("Record={ITER} rc={RC}", "ITER", iter, "RC", rc);
 
         switch (rc)
         {
             case 1:
             {
-                /* Success finding record, dump its text */
+                /* Success finding record, parse it! */
                 ALParser::parseRecord();
             }
             break;
             case 0:
                 /* No more records, something is confused! */
-                lg2::error("Record count and records out of sync");
+                lg2::error(
+                    "Record count ({NRECS}) and records out of sync ({ITER})",
+                    "NRECS", nRecords, "ITER", iter);
                 break;
             case -1:
             default:
@@ -85,84 +94,143 @@ void ALParser::parseEvent()
     }
 }
 
+/**
+ * @brief Parses general audit entry into JSON format
+ * @details Used with audit entries without specific handling. Text of audit
+ * log message is written as-is.
+ */
+void ALParser::fillAuditEntry(nlohmann::json& parsedEntry)
+{
+    parsedEntry["MessageId"] = "OpenBMC.0.5.AuditLogEntry";
+
+    /* MessageArgs: msg */
+    auto recMsg = auparse_get_record_text(au);
+    nlohmann::json messageArgs = nlohmann::json::array({recMsg});
+
+    parsedEntry["MessageArgs"] = std::move(messageArgs);
+}
+
+inline std::string getValue(std::string fieldText)
+{
+        if (fieldText.starts_with('\"'))
+        {
+                auto endQuote = fieldText.find('\"', 1);
+
+                if (endQuote != std::string::npos)
+                {
+                        return fieldText.substr(1, endQuote - 1);
+                }
+        }
+
+        return fieldText;
+}
+
+/**
+ * @brief Parses AUDIT_USYS_CONFIG audit entry into JSON format
+ * @details Expected fields from audit log entry are split into MessageArgs
+ */
+void ALParser::fillUsysEntry(nlohmann::json& parsedEntry)
+{
+    parsedEntry["MessageId"] = "OpenBMC.0.5.AuditLogUsysConfig";
+
+    nlohmann::json messageArgs = nlohmann::json::array();
+
+    /* Map expected fields to MessageArgs index */
+    /* TODO: Error handling, make map track if field is found.
+     * Can confirm all expected fields are found at end.
+     */
+    std::map<std::string, int>::const_iterator mapEntry;
+    std::map<std::string, int> msgArgMap({{"type", 0},
+                                          {"op", 1},
+                                          {"acct", 2},
+                                          {"exe", 3},
+                                          {"hostname", 4},
+                                          {"addr", 5},
+                                          {"terminal", 6},
+                                          {"res", 7}});
+
+    /* Walk the fields and insert mapped fields into messageArgs */
+    int fieldIdx = 0;
+    int frc;
+    do
+    {
+        fieldIdx++;
+
+        /* can return nullptr */
+        const char* fieldName = auparse_get_field_name(au);
+        std::string fieldTxt = auparse_get_field_str(au);
+
+        if ((fieldName == nullptr) || (fieldTxt.empty()))
+        {
+            lg2::error("Unexpected field:{FIELDIDX}", "FIELDIDX", fieldIdx);
+            continue;
+        }
+
+        mapEntry = msgArgMap.find(fieldName);
+
+        /* Map the field to the message arg, not all fields are args */
+        if (mapEntry == msgArgMap.end())
+            lg2::debug("No map entry for {FIELDNAME}", "FIELDNAME", fieldName);
+        else
+        {
+            /* Remove '"' from fieldTxt */
+            messageArgs[mapEntry->second] = getValue(fieldTxt);
+            lg2::debug(
+                "Field {NFIELD} : {FIELDNAME} = {FIELDSTR} argIdx = {ARGIDX}",
+                "NFIELD", fieldIdx, "FIELDNAME", fieldName, "FIELDSTR",
+                fieldTxt.c_str(), "ARGIDX", mapEntry->second);
+        }
+
+    } while ((frc = auparse_next_field(au)) == 1);
+
+    /* TODO: Error handling, make sure all the fields we care about
+     * exist. If any are missing switch this entry to generic instead.
+     */
+
+    parsedEntry["MessageArgs"] = std::move(messageArgs);
+}
+
+/**
+ * @brief Parses next record into JSON format
+ *
+ */
 void ALParser::parseRecord()
 {
     nlohmann::json parsedEntry;
 
-    /* Parse record into JSon object.
-     * All record types will have:
-     *   ID
-     *   EventTimestamp
-     *   MessageArgs[]
-     *
-     *   MessageArgs vary based on the record type.
-     *   For non AUDIT_USYS_CONFIG, the type and message are the only args.
-     *   For AUDIT_USYS_CONFIG:
-     *          type
-     *          op
-     *          acct
-     *          exe
-     *          hostname
-     *          addr
-     *          terminal
-     *          res
-     */
+    /* Fill common fields for any record type */
+    auto fullTimestamp = auparse_get_timestamp(au);
+    if (fullTimestamp == nullptr)
+    {
+        // TODO: Handle error
+        lg2::error("Failed to parse timestamp");
+        return;
+    }
+    parsedEntry["EventTimestamp"] = fullTimestamp->sec;
+    parsedEntry["ID"] = std::format("{}.{}:{}", fullTimestamp->sec,
+                                    fullTimestamp->milli,
+                                    fullTimestamp->serial);
+
+    /* Fill varied args fields based on record type */
     int recType = auparse_get_type(au);
 
-    auto recTypeName = auparse_get_type_name(au);
-    parsedEntry["TYPE"] = recTypeName;
+    switch (recType)
+    {
+        case AUDIT_USYS_CONFIG:
+            fillUsysEntry(parsedEntry);
+            break;
+
+        default:
+            fillAuditEntry(parsedEntry);
+            break;
+    }
+
     lg2::debug("parsedEntry = {PARSEDENTRY}", "PARSEDENTRY",
                parsedEntry.dump());
 
-    if (recType == AUDIT_USYS_CONFIG)
-    {
-        lg2::debug("Found one of our events");
-
-        unsigned long serial = auparse_get_serial(au);
-        time_t eventTime = auparse_get_time(au);
-#if 0
-                /* This gives milliseconds, seconds, serial in one, can use to
-                 * build unique event ID as well as timestamp
-                 */
-                 typedef struct
-{
-        time_t sec;             // Event seconds
-        unsigned int milli;     // millisecond of the timestamp
-        unsigned long serial;   // Serial number of the event
-        const char *host;       // Machine's node name
-} au_event_t;
-                 /* returns NULL on error */
-                 const au_event_t *auparse_get_timestamp(auparse_state_t *au);
-#endif
-
-        /* Walk the fields, this is per record */
-        unsigned int nFields = auparse_get_num_fields(au);
-
-        lg2::debug("serial={SERIAL} time={ETIME} nFields={NFIELDS}", "SERIAL",
-                   serial, "ETIME", eventTime, "NFIELDS", nFields);
-
-        int fieldIdx = 0;
-        int frc;
-        do
-        {
-            fieldIdx++;
-            /* can return nullptr */
-            const char* fieldName = auparse_get_field_name(au);
-            const char* fieldTxt = auparse_get_field_str(au);
-
-            lg2::debug("Field {NFIELD} : {FIELDNAME} = {FIELDSTR}", "NFIELD",
-                       fieldIdx, "FIELDNAME", fieldName, "FIELDSTR", fieldTxt);
-        } while ((frc = auparse_next_field(au)) == 1);
-    }
-
-    lg2::debug("type={RECTYPE}", "RECTYPE", recType);
-
-    auto recMsg = auparse_get_record_text(au);
-
-    lg2::debug("Record Msg={TEXT}", "TEXT", recMsg);
-
-    /* Straight dump of record text to parsedFile */
-    parsedFile << recMsg << '\n';
+    /* Dump JSON object to parsedFile */
+    /* TODO: Buffer writing to file */
+    parsedFile << parsedEntry.dump() << '\n';
 
     return;
 }
@@ -174,13 +242,7 @@ bool ALParser::openParsedFile(std::string filePath)
     // Check if file already exists. Error out.
     if (std::filesystem::exists(filePath, ec))
     {
-#if 0
-                lg2::error("File {FILE} already exists. ec: {EC}", "FILE",
-                filePath, "EC", ec);
-#else
         lg2::error("File {FILE} already exists.", "FILE", filePath);
-#endif
-
         return false;
     }
 
@@ -192,7 +254,7 @@ bool ALParser::openParsedFile(std::string filePath)
         return false;
     }
 
-    // Set permissions on file created, 600
+    // Set permissions on file created to match audit.log, 600
     std::filesystem::perms permission = std::filesystem::perms::owner_read |
                                         std::filesystem::perms::owner_write;
     std::filesystem::permissions(filePath, permission);

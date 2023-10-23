@@ -2,6 +2,7 @@
 
 #include <libaudit.h>
 
+#include <boost/asio/ip/host_name.hpp>
 #include <phosphor-logging/lg2.hpp>
 #include <sdbusplus/bus.hpp>
 #include <sdbusplus/server/object.hpp>
@@ -47,6 +48,7 @@ class ALManager : public ALObject
         ALObject(bus, path.c_str())
     {
         lg2::debug("Constructing ALManager Path={PATH}", "PATH", path);
+        hostName = boost::asio::ip::host_name();
     }
 
     void auditClose(void);
@@ -79,7 +81,7 @@ class ALManager : public ALObject
     }
 
     void logEvent(std::string operation, std::string username,
-                  std::string ipAddress, std::string hostname, Result result,
+                  std::string ipAddress, Result result,
                   std::string detailData) override
     {
         if (!auditOpen())
@@ -93,12 +95,13 @@ class ALManager : public ALObject
         lg2::debug(
             "Method LogEvent op={OPERATION} user={USER} addr={ADDR} host={HOST} result={RESULT} detail={DETAIL}",
             "OPERATION", operation, "USER", username, "ADDR", ipAddress, "HOST",
-            hostname, "RESULT", result, "DETAIL", detailData);
+            hostName, "RESULT", result, "DETAIL", detailData);
     }
 
   private:
     bool tryOpen = true;
     int auditfd = -1;
+    std::string hostName;
 };
 
 } // namespace auditlog

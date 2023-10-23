@@ -3,6 +3,7 @@
 #include <auparse.h>
 #include <libaudit.h>
 
+#include <nlohmann/json.hpp>
 #include <phosphor-logging/lg2.hpp>
 #include <sdbusplus/bus.hpp>
 #include <sdbusplus/server/object.hpp>
@@ -52,6 +53,8 @@ class ALParser
     void parseEvent();
     void parseRecord();
     bool openParsedFile(std::string filePath);
+    void fillAuditEntry(nlohmann::json& parsedEntry);
+    void fillUsysEntry(nlohmann::json& parsedEntry);
 
   private:
     auparse_state_t* au;
