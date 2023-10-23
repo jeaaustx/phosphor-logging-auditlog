@@ -8,6 +8,8 @@
 //               Once autoconf is removed, they should be switched over to
 //               a constant in a header file.
 
+#define AUDITLOG_PATH "/xyz/openbmc_project/logging/auditlog"
+#define AUDITLOG_INTERFACE "xyz.openbmc_project.logging.auditlog"
 #define BMC_VERSION_FILE "/etc/os-release"
 #define BUSNAME_LOGGING "xyz.openbmc_project.Logging"
 #define BUSNAME_SYSLOG_CONFIG "xyz.openbmc_project.Syslog.Config"
