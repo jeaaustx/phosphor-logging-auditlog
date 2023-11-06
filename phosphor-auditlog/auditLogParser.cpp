@@ -235,7 +235,7 @@ void ALParser::parseRecord()
     return;
 }
 
-bool ALParser::openParsedFile(std::string filePath)
+bool ALParser::createParsedFile(std::string filePath)
 {
     std::error_code ec;
 

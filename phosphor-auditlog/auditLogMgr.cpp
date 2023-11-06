@@ -25,7 +25,7 @@ void ALManager::parseAuditLog(std::string filePath)
     /* Create output file
      * TODO: Incorporate this in the constructor?
      */
-    if (auditParser.openParsedFile(filePath))
+    if (auditParser.createParsedFile(filePath))
     {
         /* Loop over all the events */
         while (auditParser.auditNextEvent())

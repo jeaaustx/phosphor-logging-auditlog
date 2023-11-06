@@ -52,7 +52,7 @@ class ALParser
     bool auditNextEvent();
     void parseEvent();
     void parseRecord();
-    bool openParsedFile(std::string filePath);
+    bool createParsedFile(std::string filePath);
     void fillAuditEntry(nlohmann::json& parsedEntry);
     void fillUsysEntry(nlohmann::json& parsedEntry);
 
