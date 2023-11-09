@@ -6,6 +6,8 @@
 #include <phosphor-logging/lg2.hpp>
 #include <sdbusplus/bus.hpp>
 #include <sdbusplus/server/object.hpp>
+#include <sdeventplus/event.hpp>
+#include <sdeventplus/source/event.hpp>
 #include <xyz/openbmc_project/Common/File/error.hpp>
 #include <xyz/openbmc_project/Logging/AuditLog/server.hpp>
 
@@ -59,26 +61,7 @@ class ALManager : public ALObject
                          const std::string& item);
 
     void parseAuditLog(std::string filePath) override;
-
-    sdbusplus::message::unix_fd getAuditLog() override
-    {
-        int fd = -1;
-
-        lg2::debug("Method GetAuditLog");
-
-        /* Return the system audit log fd to test interface,
-         * but will be altered to return the parsed file eventually.
-         */
-        if (!auditOpen())
-        {
-            throw sdbusplus::xyz::openbmc_project::Common::File::Error::Open();
-        }
-
-        lg2::debug("auditfd={AUDITFD}", "AUDITFD", auditfd);
-        fd = auditfd;
-
-        return fd;
-    }
+    sdbusplus::message::unix_fd getAuditLog() override;
 
     void logEvent(std::string operation, std::string username,
                   std::string ipAddress, Result result,
@@ -100,8 +83,25 @@ class ALManager : public ALObject
 
   private:
     bool tryOpen = true;
-    int auditfd = -1;
+    int auditfd = -1;   // Socket connection to audit service
     std::string hostName;
+    std::string parsedFile = "/tmp/auditLog.json";
+
+    /**
+     * @brief The event source for closing the parsedFile descriptor after it
+     *        has been returned from the getEntry D-Bus method.
+     */
+    std::unique_ptr<sdeventplus::source::Defer> fdCloseEventSource;
+
+    /**
+     * @brief Closes the file descriptor passed in.
+     * @details This is called from the event loop to close FDs returned from
+     * getAuditLog().
+     * @param[in] fd - The file descriptor to close
+     * @param[in] source - The event source object used
+     */
+    void closeFD(int fd, sdeventplus::source::EventBase& source);
+
 };
 
 } // namespace auditlog

@@ -15,6 +15,9 @@ constexpr auto auditLogBusName = "xyz.openbmc_project.logging.auditlog";
 int main(int /*argc*/, char* /*argv*/[])
 {
     auto bus = sdbusplus::bus::new_default();
+    auto event = sdeventplus::Event::get_default();
+    bus.attach_event(event.get(), SD_EVENT_PRIORITY_NORMAL);
+
     sdbusplus::server::manager_t objManager{bus, auditLogMgrRoot};
 
     // Reserve the dbus service name
@@ -23,7 +26,7 @@ int main(int /*argc*/, char* /*argv*/[])
     phosphor::auditlog::ALManager alMgr(bus, auditLogMgrRoot);
 
     // Handle dbus processing forever.
-    bus.process_loop();
+    event.loop();
 
     return 0;
 }
