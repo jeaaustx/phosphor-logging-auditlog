@@ -33,7 +33,9 @@ void ALManager::parseAuditLog(std::string filePath)
         while (auditParser.auditNextEvent())
         {
             nEvent++;
+#ifdef AUDITLOG_FULL_DEBUG
             lg2::debug("Getting event: {NEVENT}", "NEVENT", nEvent);
+#endif // AUDITLOG_FULL_DEBUG
 
             auditParser.parseEvent();
         }

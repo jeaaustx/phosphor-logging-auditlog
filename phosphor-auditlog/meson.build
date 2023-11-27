@@ -9,9 +9,14 @@ auditlog_sources = [
         'auditLogUtils.cpp',
         )
 ]
+
+extra_args = []
+# extra_args += ['-DAUDITLOG_FULL_DEBUG',]
+
 executable('phosphor-auditlog',
     auditlog_sources,
     include_directories: include_directories('..'),
+    cpp_args: extra_args,
     dependencies: [
         conf_h_dep,
         phosphor_logging_dep,

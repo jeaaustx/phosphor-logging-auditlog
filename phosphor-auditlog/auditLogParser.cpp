@@ -169,17 +169,23 @@ void ALParser::fillUsysEntry(nlohmann::json& parsedEntry)
         mapEntry = msgArgMap.find(fieldName);
 
         /* Map the field to the message arg, not all fields are args */
-        if (mapEntry == msgArgMap.end())
-            lg2::debug("No map entry for {FIELDNAME}", "FIELDNAME", fieldName);
-        else
+        if (mapEntry != msgArgMap.end())
         {
             /* Remove '"' from fieldTxt */
             messageArgs[mapEntry->second] = getValue(fieldTxt);
+#ifdef AUDITLOG_FULL_DEBUG
             lg2::debug(
                 "Field {NFIELD} : {FIELDNAME} = {FIELDSTR} argIdx = {ARGIDX}",
                 "NFIELD", fieldIdx, "FIELDNAME", fieldName, "FIELDSTR",
                 fieldTxt.c_str(), "ARGIDX", mapEntry->second);
+#endif // AUDITLOG_FULL_DEBUG
         }
+#ifdef AUDITLOG_FULL_DEBUG
+        else
+        {
+            lg2::debug("No map entry for {FIELDNAME}", "FIELDNAME", fieldName);
+        }
+#endif // AUDITLOG_FULL_DEBUG
 
     } while ((frc = auparse_next_field(au)) == 1);
 
@@ -225,8 +231,10 @@ void ALParser::parseRecord()
             break;
     }
 
+#ifdef AUDITLOG_FULL_DEBUG
     lg2::debug("parsedEntry = {PARSEDENTRY}", "PARSEDENTRY",
                parsedEntry.dump());
+#endif // AUDITLOG_FULL_DEBUG
 
     /* Dump JSON object to parsedFile */
     /* TODO: Buffer writing to file */
