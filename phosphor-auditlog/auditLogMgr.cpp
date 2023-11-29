@@ -41,10 +41,12 @@ void ALManager::parseAuditLog(std::string filePath)
             auditParser.parseEvent();
         }
     }
+#if 0
     else
     {
             throw sdbusplus::xyz::openbmc_project::Common::File::Error::Write();
     }
+#endif
 
     return;
 }

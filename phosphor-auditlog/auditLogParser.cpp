@@ -157,6 +157,7 @@ void ALParser::fillUsysEntry(nlohmann::json& parsedEntry)
     /* Walk the fields and insert mapped fields into messageArgs */
     int fieldIdx = 0;
     int frc;
+    int nFields = 0;
     do
     {
         fieldIdx++;
@@ -178,6 +179,7 @@ void ALParser::fillUsysEntry(nlohmann::json& parsedEntry)
         {
             /* Remove '"' from fieldTxt */
             messageArgs[mapEntry->second] = getValue(fieldTxt);
+            nFields++;
 #ifdef AUDITLOG_FULL_DEBUG
             lg2::debug(
                 "Field {NFIELD} : {FIELDNAME} = {FIELDSTR} argIdx = {ARGIDX}",
@@ -197,6 +199,23 @@ void ALParser::fillUsysEntry(nlohmann::json& parsedEntry)
     /* TODO: Error handling, make sure all the fields we care about
      * exist. If any are missing switch this entry to generic instead.
      */
+    if (nFields != 8)
+    {
+            lg2::debug("Incorrect nFields = {NFIELDS}", "NFIELDS", nFields);
+            /* Set missing fields to empty string */
+            for (auto argIdx = 0; (nFields !=8) && (argIdx < 8); argIdx++)
+            {
+                    if (messageArgs[argIdx] == nullptr)
+                    {
+                            lg2::debug("Correcting arg={ARGIDX}", "ARGIDX",
+                            argIdx);
+                            messageArgs[argIdx] = "";
+                            nFields++;
+                    }
+            }
+
+            lg2::debug("nFields = {NFIELDS}", "NFIELDS", nFields);
+    }
 
     parsedEntry["MessageArgs"] = std::move(messageArgs);
 }
@@ -258,6 +277,13 @@ bool ALParser::createParsedFile(std::string filePath)
     if (std::filesystem::exists(filePath, ec))
     {
         lg2::error("File {FILE} already exists.", "FILE", filePath);
+        return false;
+    }
+#else
+    // For debugging use already parsed file
+    if (std::filesystem::exists(filePath, ec))
+    {
+        lg2::debug("File {FILE} already exists.", "FILE", filePath);
         return false;
     }
 #endif
