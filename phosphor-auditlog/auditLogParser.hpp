@@ -8,6 +8,7 @@
 #include <sdbusplus/bus.hpp>
 #include <sdbusplus/server/object.hpp>
 #include <xyz/openbmc_project/Common/File/error.hpp>
+#include <xyz/openbmc_project/Common/error.hpp>
 #include <xyz/openbmc_project/Logging/AuditLog/server.hpp>
 
 #include <fstream>
@@ -40,6 +41,7 @@ class ALParser
         if (au == nullptr)
         {
             lg2::error("Failed to init auparse");
+            throw sdbusplus::xyz::openbmc_project::Common::Error::InternalFailure();
         }
     }
 

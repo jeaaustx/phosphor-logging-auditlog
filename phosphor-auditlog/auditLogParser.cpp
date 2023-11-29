@@ -7,6 +7,8 @@
 
 #include <nlohmann/json.hpp>
 #include <phosphor-logging/lg2.hpp>
+#include <xyz/openbmc_project/Common/File/error.hpp>
+#include <xyz/openbmc_project/Common/error.hpp>
 
 #include <cstring>
 #include <filesystem>
@@ -84,11 +86,14 @@ void ALParser::parseEvent()
                 lg2::error(
                     "Record count ({NRECS}) and records out of sync ({ITER})",
                     "NRECS", nRecords, "ITER", iter);
+                throw sdbusplus::xyz::openbmc_project::Common::Error::InternalFailure();
+
                 break;
             case -1:
             default:
                 /* Error */
                 lg2::error("Failed on record number={ITER}", "ITER", iter);
+                throw sdbusplus::xyz::openbmc_project::Common::Error::InternalFailure();
                 break;
         }
     }
@@ -210,6 +215,7 @@ void ALParser::parseRecord()
     {
         // TODO: Handle error
         lg2::error("Failed to parse timestamp");
+        throw sdbusplus::xyz::openbmc_project::Common::Error::InternalFailure();
         return;
     }
     parsedEntry["EventTimestamp"] = fullTimestamp->sec;
@@ -259,6 +265,7 @@ bool ALParser::createParsedFile(std::string filePath)
     if (parsedFile.fail())
     {
         lg2::error("Failed to open {FILE}", "FILE", filePath);
+        throw sdbusplus::xyz::openbmc_project::Common::File::Error::Open();
         return false;
     }
 

@@ -7,6 +7,7 @@
 #include <phosphor-logging/lg2.hpp>
 #include <sdeventplus/event.hpp>
 #include <sdeventplus/source/event.hpp>
+#include <xyz/openbmc_project/Common/File/error.hpp>
 
 #include <cstring>
 #include <string>
@@ -40,12 +41,10 @@ void ALManager::parseAuditLog(std::string filePath)
             auditParser.parseEvent();
         }
     }
-#if 0
     else
     {
-            // Handle error
+            throw sdbusplus::xyz::openbmc_project::Common::File::Error::Write();
     }
-#endif
 
     return;
 }
@@ -66,7 +65,7 @@ sdbusplus::message::unix_fd ALManager::getAuditLog()
     if (!std::filesystem::exists(parsedFile, ec))
     {
         lg2::error("File {FILE} doesn't exist.", "FILE", parsedFile);
-        // TODO: throw an error in this case
+        throw sdbusplus::xyz::openbmc_project::Common::File::Error::Open();
         return fd;
     }
 
