@@ -253,12 +253,14 @@ bool ALParser::createParsedFile(std::string filePath)
 {
     std::error_code ec;
 
-    // Check if file already exists. Error out.
+#if 0
+    // TODO: Add append support
     if (std::filesystem::exists(filePath, ec))
     {
         lg2::error("File {FILE} already exists.", "FILE", filePath);
         return false;
     }
+#endif
 
     // Create/Open file using trunc
     parsedFile.open(filePath, std::ios::trunc);
